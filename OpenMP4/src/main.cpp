@@ -75,6 +75,7 @@ double calc(uint32_t x_last, uint32_t num_threads)
   delete [] borders;
   delete [] border_value;
   return sum;
+
 }
 
 int main(int argc, char** argv)

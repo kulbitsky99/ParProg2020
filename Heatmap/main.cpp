@@ -17,6 +17,7 @@ int main(int argc, char** argv)
   {
     std::cout << "[Error] Usage <n_of_external_processes> <n_of_internal_processes>\n";
     return 1;
+
   }
 
   int n_of_external_threads = ReadArg(argv[1]);
