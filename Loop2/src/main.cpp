@@ -7,17 +7,76 @@
 
 void calc(double* arr, uint32_t ySize, uint32_t xSize, int rank, int size)
 {
+  MPI_Bcast(&xSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&ySize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  uint32_t block_start = 0, block_end = 0, block_size = 0;
   if (rank == 0 && size > 0)
   {
-    for (uint32_t y = 0; y < ySize - 1; y++)
+    block_size = ySize / size + 1;
+    for (int i = 1; i < size; i++)
     {
-      for (uint32_t x = 3; x < xSize; x++)
-      {
-        arr[y*xSize + x] = sin(0.00001*arr[(y + 1)*xSize + x - 3]);
-      }
+      block_start = i * block_size;
+      block_end = (i + 1) * block_size + 1;
+      if (block_end > ySize)
+        block_end = ySize;
+      if (block_start > ySize)
+        block_start = ySize;
+      MPI_Send (&(arr[block_start * xSize]), xSize * (block_end - block_start), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+    }
+
+    block_start = 0;
+    if(block_size + 1 < ySize)
+      block_end = block_size + 1;
+    else
+      block_end = ySize;
+
+  } 
+  else 
+  {
+    block_size = ySize / size + 1;
+    block_start = rank * block_size;
+    block_end = (rank + 1) * block_size + 1;
+    if (block_end > ySize)
+      block_end = ySize;
+    if (block_start > ySize)
+      block_start = ySize;
+
+    arr = (double*) malloc (sizeof(double) * xSize * (block_end - block_start));
+    MPI_Status status;
+    MPI_Recv(arr, xSize * (block_end - block_start), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+  }
+
+  int y_new = block_end - block_start - 1, x_new = xSize;
+  for (int i = 0; i < y_new; i++)
+    for (int j = 3; j < x_new; j++)
+      arr[i * xSize + j] = sin(0.00001 * arr[(i + 1) * xSize + j - 3]);
+  
+  if (rank == 0 && size > 0)
+  {
+    for (int i = 1; i < size; i++) 
+    {
+      block_start = i * block_size;
+      block_end = (i + 1) * block_size;
+      if (block_end > ySize)
+        block_end = ySize;
+      if (block_start > ySize)
+        block_start = ySize;
+      MPI_Status status;
+      MPI_Recv (&(arr[block_start * xSize]), xSize * (block_end - block_start), MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
     }
   }
+  else 
+  {
+    // can't send negative number of elements so need to check out this option
+    if (block_end - block_start == 0)
+      MPI_Send(arr, 0, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+    else  
+      MPI_Send(arr, xSize * (block_end - block_start - 1), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+    free(arr);
+  }
 }
+
 
 int main(int argc, char** argv)
 {

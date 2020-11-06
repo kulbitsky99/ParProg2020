@@ -5,19 +5,98 @@
 #include <unistd.h>
 #include <cmath>
 
-void calc(double* arr, uint32_t ySize, uint32_t xSize, int rank, int size)
+void calc_transposed(double* arr, uint32_t ySize, uint32_t xSize, int rank, int size);
+
+void calc           (double* arr, uint32_t ySize, uint32_t xSize, int rank, int size)
 {
+  double* arr_t;
+
   if (rank == 0 && size > 0)
   {
-    for (uint32_t y = 4; y < ySize; y++)
-    {
-      for (uint32_t x = 0; x < xSize; x++)
-      {
-        arr[y*xSize + x] = sin(arr[(y - 4)*xSize + x]);
-      }
-    }
+    arr_t = (double*) malloc (sizeof(double) * xSize * ySize);
+
+    for (uint32_t i = 0; i < ySize; i++)
+      for (uint32_t j = 0; j < xSize; j++)
+        arr_t[j * ySize + i] = arr[i * xSize + j];
+  }
+
+  calc_transposed(arr_t, xSize, ySize, rank, size);
+
+  if (rank == 0 && size > 0)
+  {
+    for (uint32_t i = 0; i < ySize; i++)
+      for (uint32_t j = 0; j < xSize; j++)
+        arr[i * xSize + j] = arr_t[j * ySize + i];
+
+    free(arr_t);
   }
 }
+
+void calc_transposed(double* arr, uint32_t ySize, uint32_t xSize, int rank, int size)
+{
+  MPI_Bcast(&xSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&ySize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  uint32_t block_start = 0, block_end = 0, block_size = 0;
+  if (rank == 0 && size > 0)
+  {
+    block_size = ySize / size + 1;
+    for (int i = 1; i < size; i++)
+    {
+      block_start = i * block_size;
+      block_end = (i + 1) * block_size;
+      if (block_end > ySize)
+        block_end = ySize;
+      if (block_start > ySize)
+        block_start = ySize;
+      MPI_Send (&(arr[block_start * xSize]), xSize * (block_end - block_start), MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+    }
+    block_start = 0;
+    if(block_size < ySize)
+      block_end = block_size;
+    else
+      block_end = ySize;
+  } 
+  else 
+  {
+    block_size = (ySize + size) / size;
+    block_start = rank * block_size;
+    block_end = block_start + block_size;
+    if (block_end > ySize)
+      block_end = ySize;
+    if (block_start > ySize)
+      block_start = ySize;
+    arr = (double*) malloc (sizeof(double) * xSize * (block_end - block_start));
+    MPI_Status status;
+    MPI_Recv(arr, xSize * (block_end - block_start), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+  }
+
+  for (uint32_t i = 0; i < block_end - block_start; i++)
+    for (uint32_t j = 4; j < xSize; j++)
+    {
+      arr[i * xSize + j] =  sin(arr[i * xSize + j - 4]);
+    }
+  if (rank == 0 && size > 0)
+  {
+    for (int i = 1; i < size; i++)
+    {
+      block_start = i * block_size;
+      block_end = (i + 1) * block_size;
+      if (block_end > ySize)
+        block_end = ySize;
+      if (block_start > ySize)
+        block_start = ySize;
+      MPI_Status status;
+      MPI_Recv (&(arr[block_start * xSize]), xSize * (block_end - block_start), MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &status);
+    }
+  } 
+  else 
+  {
+    MPI_Send(arr, xSize * (block_end - block_start), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+    free(arr);
+  }
+}
+
 
 int main(int argc, char** argv)
 {
