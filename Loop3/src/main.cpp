@@ -9,26 +9,26 @@ void calc_transposed(double* arr, uint32_t ySize, uint32_t xSize, int rank, int 
 
 void calc           (double* arr, uint32_t ySize, uint32_t xSize, int rank, int size)
 {
-  double* arr_t;
+  double* arr_transposed;
 
   if (rank == 0 && size > 0)
   {
-    arr_t = (double*) malloc (sizeof(double) * xSize * ySize);
+    arr_transposed = (double*) malloc (sizeof(double) * xSize * ySize);
 
     for (uint32_t i = 0; i < ySize; i++)
       for (uint32_t j = 0; j < xSize; j++)
-        arr_t[j * ySize + i] = arr[i * xSize + j];
+        arr_transposed[j * ySize + i] = arr[i * xSize + j];
   }
 
-  calc_transposed(arr_t, xSize, ySize, rank, size);
+  calc_transposed(arr_transposed, xSize, ySize, rank, size);
 
   if (rank == 0 && size > 0)
   {
     for (uint32_t i = 0; i < ySize; i++)
       for (uint32_t j = 0; j < xSize; j++)
-        arr[i * xSize + j] = arr_t[j * ySize + i];
+        arr[i * xSize + j] = arr_transposed[j * ySize + i];
 
-    free(arr_t);
+    free(arr_transposed);
   }
 }
 
